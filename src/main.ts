@@ -105,7 +105,7 @@ async function buildApp() {
             'External agents authenticate with `Authorization: Bearer <api-key>`. ' +
             'Every response carries an `X-Request-Id` header (send your own to correlate).',
         },
-        servers: [{ url: serverUrl(config.PORT), description: 'Development server' }],
+        servers: [{ url: serverUrl(config.PORT, config.PUBLIC_BASE_URL), description: 'Development server' }],
         components: {
           securitySchemes: apiSecuritySchemes,
         },
