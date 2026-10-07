@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProofLayer — Local Demo Client</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 960px; margin: 0 auto; padding: 24px; background: #f7f7f8; color: #1a1a1a; }
+  h1 { margin-bottom: 4px; }
+  .sub { color: #555; margin-top: 0; }
+  section { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+  label { display: block; font-weight: 600; margin: 10px 0 4px; }
+  input, select, button { font-size: 14px; padding: 8px 10px; border-radius: 6px; border: 1px solid #bbb; }
+  input, select { width: 100%; box-sizing: border-box; }
+  button { cursor: pointer; background: #1a1a1a; color: #fff; border-color: #1a1a1a; margin: 8px 8px 0 0; }
+  button.secondary { background: #fff; color: #1a1a1a; }
+  .row { display: flex; gap: 12px; } .row > div { flex: 1; }
+  .badge { display: inline-block; font-weight: 700; padding: 4px 14px; border-radius: 999px; color: #fff; }
+  .VERIFIED { background: #15803d; } .FAILED { background: #b91c1c; } .INCONCLUSIVE { background: #b45309; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+  th { background: #f0f0f0; }
+  .pass { color: #15803d; font-weight: 700; } .fail { color: #b91c1c; font-weight: 700; } .unk { color: #b45309; font-weight: 700; }
+  pre { background: #111; color: #e5e5e5; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+  #error { display: none; background: #fef2f2; border: 1px solid #b91c1c; color: #7f1d1d; border-radius: 8px; padding: 12px; margin-top: 12px; }
+  #result { display: none; }
+  .confbar { height: 10px; background: #eee; border-radius: 999px; overflow: hidden; margin-top: 4px; }
+  .confbar > div { height: 100%; background: #1a1a1a; }
+  .hint { font-size: 13px; color: #555; }
+  #authState { font-size: 14px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>ProofLayer — Local Demo Client</h1>
+<p class="sub">Developer demo only. This page calls the real local API (<code>/api/v1</code>) — nothing here re-implements verification.</p>
+
+<section>
+  <h2>How it works</h2>
+  <div class="row">
+    <div><strong>1. Agent CLAIM</strong><br><span class="hint">What the agent <em>says</em> happened (left input below).</span></div>
+    <div><strong>2. Independent EVIDENCE</strong><br><span class="hint">What the DemoEvidenceProvider <em>observed</em> in the sent mailbox — fetched independently of the claim.</span></div>
+    <div><strong>3. Engine VERDICT</strong><br><span class="hint">Deterministic rules turn evidence into VERIFIED / FAILED / INCONCLUSIVE, with a reason.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Step 1 — Authenticate</h2>
+  <p class="hint">Use an API key <em>or</em> log in with email + password (session cookie). The key is kept only in page memory, never logged or displayed back.</p>
+  <label for="apiKey">API key (Bearer)</label>
+  <input id="apiKey" type="password" placeholder="pl_..." autocomplete="off">
+  <div class="row">
+    <div><label for="email">Email (session login)</label><input id="email" type="email" placeholder="you@example.com"></div>
+    <div><label for="password">Password</label><input id="password" type="password" autocomplete="off"></div>
+  </div>
+  <button id="loginBtn">Log in (session)</button>
+  <button id="clearAuthBtn" class="secondary">Clear auth</button>
+  <div id="authState">Not authenticated.</div>
+</section>
+
+<section>
+  <h2>Step 2 — Pick an agent</h2>
+  <label for="agentId">Agent ID</label>
+  <input id="agentId" placeholder="paste an agent id, or load your agents">
+  <button id="loadAgentsBtn" class="secondary">Load my agents</button>
+  <select id="agentSelect" style="display:none; margin-top:8px;"></select>
+</section>
+
+<section>
+  <h2>Step 3 — Build the claim</h2>
+  <button class="secondary" data-scenario="verified">A: VERIFIED scenario</button>
+  <button class="secondary" data-scenario="failed">B: FAILED scenario</button>
+  <button class="secondary" data-scenario="inconclusive">C: INCONCLUSIVE scenario</button>
+  <div class="row">
+    <div><label for="recipient">Recipient</label><input id="recipient" value="john@example.com"></div>
+    <div><label for="attachment">Attachment (optional)</label><input id="attachment" value="invoice.pdf"></div>
+  </div>
+  <label for="subject">Subject</label>
+  <input id="subject" value="Invoice #4821">
+  <br>
+  <button id="verifyBtn">Verify claim → POST /api/v1/verifications</button>
+  <div id="error"></div>
+</section>
+
+<section id="result">
+  <h2>Verification result <span id="statusBadge" class="badge">?</span></h2>
+  <p><strong>ID:</strong> <code id="rId"></code></p>
+  <p><strong>Confidence:</strong> <span id="rConf"></span></p>
+  <div class="confbar"><div id="confFill"></div></div>
+  <p><strong>Why:</strong> <span id="rReason"></span></p>
+  <div class="row">
+    <div><strong>What the agent CLAIMED</strong><pre id="rClaim"></pre></div>
+    <div><strong>What the system OBSERVED</strong><pre id="rEvidence"></pre></div>
+  </div>
+  <label>Evidence checks</label>
+  <table><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody id="rTable"></tbody></table>
+  <br>
+  <button id="retrieveBtn" class="secondary">Re-retrieve → GET /api/v1/verifications/:id</button>
+</section>
+
+<script>
+(function () {
+  'use strict';
+  var apiKey = '';
+  var $ = function (id) { return document.getElementById(id); };
+
+  var SCENARIOS = {
+    verified:     { recipient: 'john@example.com',  subject: 'Invoice #4821', attachment: 'invoice.pdf' },
+    failed:       { recipient: 'jane@example.com', subject: 'Invoice #4821', attachment: 'invoice.pdf' },
+    inconclusive: { recipient: 'ghost@example.com', subject: 'Invoice #4821', attachment: 'invoice.pdf' }
+  };
+
+  function headers() {
+    var h = { 'Content-Type': 'application/json' };
+    if (apiKey) h['Authorization'] = 'Bearer ' + apiKey;
+    return h;
+  }
+  function showError(label, code, msg) {
+    var box = $('error');
+    var help = { 400: 'Invalid request — check the fields against the API rules.',
+                 401: 'Not authenticated — set an API key or log in first.',
+                 404: 'Not found — the agent or verification id does not exist (or belongs to another organization).',
+                 500: 'Server error — check the backend logs.' }[code] || 'Request failed.';
+    box.style.display = 'block';
+    box.textContent = label + ' → HTTP ' + code + ' — ' + help + ' Detail: ' + msg;
+  }
+  function hideError() { $('error').style.display = 'none'; }
+  async function failFor(label, res) {
+    var detail = '';
+    try { detail = JSON.stringify(await res.json()); } catch (e) { detail = res.statusText; }
+    showError(label, res.status, detail);
+  }
+  function showLocalError(label, msg) {
+    var box = $('error');
+    box.style.display = 'block';
+    box.textContent = label + ' → ' + msg;
+  }
+
+  document.querySelectorAll('[data-scenario]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var s = SCENARIOS[btn.getAttribute('data-scenario')];
+      $('recipient').value = s.recipient; $('subject').value = s.subject; $('attachment').value = s.attachment;
+      hideError();
+    });
+  });
+
+  $('clearAuthBtn').addEventListener('click', function () {
+    apiKey = ''; $('apiKey').value = ''; $('password').value = '';
+    $('authState').textContent = 'Not authenticated.';
+  });
+  $('apiKey').addEventListener('input', function (e) {
+    apiKey = e.target.value.trim();
+    if (apiKey) $('authState').textContent = 'Using API key ending …' + apiKey.slice(-4) + ' (never displayed in full).';
+  });
+  $('loginBtn').addEventListener('click', async function () {
+    hideError();
+    var email = $('email').value.trim();
+    if (!email || email.indexOf('@') < 0) {
+      showLocalError('POST /api/v1/auth/login', 'Enter a valid email address before logging in — no request was sent.');
+      return;
+    }
+    var res = await fetch('/api/v1/auth/login', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: $('password').value })
+    });
+    $('password').value = '';
+    if (!res.ok) { await failFor('POST /api/v1/auth/login', res); return; }
+    var data = await res.json();
+    $('authState').textContent = 'Logged in as ' + data.user.email + ' (session cookie).';
+  });
+  $('loadAgentsBtn').addEventListener('click', async function () {
+    hideError();
+    var res = await fetch('/api/v1/agents/', { credentials: 'include', headers: headers() });
+    if (!res.ok) { await failFor('GET /api/v1/agents/', res); return; }
+    var data = await res.json();
+    var sel = $('agentSelect');
+    sel.innerHTML = '';
+    data.data.forEach(function (a) {
+      var o = document.createElement('option');
+      o.value = a.id; o.textContent = a.name + ' (' + a.id + ')';
+      sel.appendChild(o);
+    });
+    sel.style.display = 'block';
+    if (data.data.length) $('agentId').value = data.data[0].id;
+    sel.addEventListener('change', function () { $('agentId').value = sel.value; });
+  });
+
+  function render(v) {
+    $('result').style.display = 'block';
+    var badge = $('statusBadge');
+    badge.textContent = v.status;
+    badge.className = 'badge ' + v.status;
+    $('rId').textContent = v.id;
+    $('rConf').textContent = v.confidence;
+    $('confFill').style.width = Math.round(v.confidence * 100) + '%';
+    $('rReason').textContent = v.reason;
+    $('rClaim').textContent = JSON.stringify(v.claim, null, 2);
+    $('rEvidence').textContent = JSON.stringify(v.evidence, null, 2);
+    var tb = $('rTable'); tb.innerHTML = '';
+    v.evidence.forEach(function (e) {
+      var tr = document.createElement('tr');
+      var cls = e.result === 'PASS' ? 'pass' : (e.result === 'FAIL' ? 'fail' : 'unk');
+      tr.innerHTML = '<td></td><td></td><td></td><td class="' + cls + '"></td>';
+      tr.children[0].textContent = e.type;
+      tr.children[1].textContent = e.expected == null ? '—' : e.expected;
+      tr.children[2].textContent = e.observed == null ? '—' : e.observed;
+      tr.children[3].textContent = e.result;
+      tb.appendChild(tr);
+    });
+    $('result').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  $('verifyBtn').addEventListener('click', async function () {
+    hideError();
+    // Note: no `email` property here by design — verification requests carry
+    // only agentId + claim (+ explicit demo provider). Authentication travels
+    // exclusively via the Authorization header / session cookie.
+    var body = { agentId: $('agentId').value.trim(),
+      provider: 'demo',
+      claim: { type: 'email_sent', recipient: $('recipient').value.trim(),
+               subject: $('subject').value, attachment: $('attachment').value.trim() || undefined } };
+    var res = await fetch('/api/v1/verifications/', {
+      method: 'POST', credentials: 'include', headers: headers(), body: JSON.stringify(body) });
+    if (!res.ok) { await failFor('POST /api/v1/verifications/', res); return; }
+    render(await res.json());
+  });
+  $('retrieveBtn').addEventListener('click', async function () {
+    hideError();
+    var id = $('rId').textContent;
+    var res = await fetch('/api/v1/verifications/' + encodeURIComponent(id), { credentials: 'include', headers: headers() });
+    if (!res.ok) { await failFor('GET /api/v1/verifications/:id', res); return; }
+    render(await res.json());
+  });
+})();
+</script>
+</body>
+</html>

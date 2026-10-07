@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  organizationId String
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  token        String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  agents    Agent[]
+  apiKeys   ApiKey[]
+  auditLogs AuditLog[]
+  verifications Verification[]
+  gmailAccounts GmailAccount[]
+
+  @@index([name])
+}
+
+model Agent {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  status         String   @default("active")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verifications  Verification[]
+  auditLogs      AuditLog[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model GmailAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String   @default("gmail")
+  email          String
+  accessToken    String?
+  refreshToken   String?
+  expiresAt      DateTime?
+  scopes         String[]
+  status         String   @default("CONNECTED")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([status])
+}
+
+model ApiKey {
+  id             String   @id @default(cuid())
+  name           String
+  keyHash        String   @unique
+  keyPrefix      String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions    String[]
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+  auditLogs      AuditLog[]
+
+  @@index([organizationId])
+  @@index([keyPrefix])
+}
+
+model Verification {
+  id            String   @id @default(cuid())
+  agentId       String
+  agent         Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actionType    String
+  claim         Json
+  status        String
+  confidence    Float
+  provider      String   @default("demo")
+  reason        String?
+  evidence      Json
+  gmailMessageId String?
+  idempotencyKey String?
+  verifiedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([agentId])
+  @@index([organizationId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([verifiedAt])
+  @@index([status])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agentId       String?
+  agent         Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  apiKeyId      String?
+  apiKey        ApiKey?  @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  action        String
+  metadata      Json
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([userId])
+}

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ProofLayer — independent verification for AI agents. Don't trust an agent because it says it succeeded. Make it prove it.">
+<title>ProofLayer — Make AI agents prove it</title>
+<style>
+  :root {
+    --bg: #0a0e14; --panel: #11161f; --panel-2: #161c27;
+    --border: #232c3d; --text: #e6edf3; --muted: #8b98ab;
+    --accent: #2dd4bf; --green: #34d399; --red: #f87171; --amber: #fbbf24;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+  .wrap { max-width: 1024px; margin: 0 auto; padding: 0 24px; }
+  header.nav { border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(10,14,20,.92); backdrop-filter: blur(8px); z-index: 10; }
+  header.nav .wrap { display: flex; align-items: center; gap: 16px; padding-top: 14px; padding-bottom: 14px; }
+  .logo { font-weight: 800; letter-spacing: .5px; } .logo span { color: var(--accent); }
+  nav.links { margin-left: auto; display: flex; gap: 18px; font-size: 14px; }
+  nav.links a { color: var(--muted); text-decoration: none; } nav.links a:hover { color: var(--text); }
+  section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+  h1 { font-size: clamp(34px, 5vw, 56px); line-height: 1.12; margin: 0 0 16px; letter-spacing: -1px; }
+  h1 .strike { color: var(--muted); } h1 .prove { color: var(--accent); }
+  h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.5px; margin: 0 0 12px; }
+  p.lead { color: var(--muted); font-size: 18px; max-width: 640px; }
+  .cta-row { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 8px; font-weight: 700; text-decoration: none; border: 1px solid transparent; }
+  .btn.primary { background: var(--accent); color: #06231f; }
+  .btn.ghost { border-color: var(--border); color: var(--text); }
+  .btn.small { padding: 8px 14px; font-size: 14px; }
+  .flow { display: flex; align-items: stretch; gap: 0; margin-top: 36px; flex-wrap: wrap; }
+  .node { flex: 1 1 120px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; font-family: var(--mono); font-size: 13px; }
+  .node b { display: block; font-size: 15px; margin-bottom: 4px; font-family: var(--sans); }
+  .node small { color: var(--muted); }
+  .arrow { align-self: center; padding: 0 8px; color: var(--accent); font-weight: 700; }
+  .flow .pulse { animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .flow .pulse { animation: none; } }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } .arrow { display: none; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .quote { font-family: var(--mono); font-size: 15px; }
+  .bad { border-left: 3px solid var(--red); } .good { border-left: 3px solid var(--green); }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; }
+  @media (max-width: 720px) { .steps { grid-template-columns: 1fr 1fr; } }
+  .step { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .step .n { font-family: var(--mono); color: var(--accent); font-weight: 700; }
+  pre.code { background: #070b11; border: 1px solid var(--border); border-radius: 10px; padding: 18px; overflow-x: auto; font-family: var(--mono); font-size: 13.5px; line-height: 1.55; }
+  .k { color: #7dd3fc; } .s { color: #a5f3c8; } .num { color: #fbbf24; } .c { color: #5b6b82; }
+  .scen-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0; }
+  .scen { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; }
+  .scen:hover, .scen.active { border-color: var(--accent); }
+  .badge { display: inline-block; font-weight: 800; padding: 5px 16px; border-radius: 999px; letter-spacing: .5px; }
+  .VERIFIED { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid var(--green); }
+  .FAILED { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid var(--red); }
+  .INCONCLUSIVE { background: rgba(251,191,36,.12); color: var(--amber); border: 1px solid var(--amber); }
+  table.ev { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+  table.ev th, table.ev td { border-bottom: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.ev th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .PASS { color: var(--green); font-weight: 700; } .FAIL { color: var(--red); font-weight: 700; } .UNKNOWN { color: var(--amber); font-weight: 700; }
+  #demoError { display: none; margin-top: 12px; background: rgba(248,113,113,.08); border: 1px solid var(--red); border-radius: 8px; padding: 12px; font-size: 14px; }
+  #demoResult { display: none; margin-top: 16px; }
+  .pills { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .pill { border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .pill.live { color: var(--green); border-color: var(--green); }
+  .sec-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; padding: 0; list-style: none; }
+  @media (max-width: 720px) { .sec-list { grid-template-columns: 1fr; } }
+  .sec-list li { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+  .sec-list b { display: block; }
+  .sec-list span { color: var(--muted); font-size: 13px; }
+  footer { padding: 32px 0 48px; color: var(--muted); font-size: 13px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <div class="logo">Proof<span>Layer</span></div>
+  <nav class="links">
+    <a href="#how">How it works</a><a href="#demo">Live demo</a><a href="#api">API</a><a href="/docs">Docs</a><a href="/demo">Dev tool</a>
+  </nav>
+</div></header>
+
+<div class="wrap">
+<section>
+  <h1><span class="strike">AI agents claim they succeeded.</span><br><span class="prove">ProofLayer makes them prove it.</span></h1>
+  <p class="lead">ProofLayer independently verifies actions performed by AI agents — using real evidence from external systems, not the agent's own word. VERIFIED, FAILED, or INCONCLUSIVE. With receipts.</p>
+  <div class="cta-row"><a class="btn primary" href="#demo">Try the Demo</a><a class="btn ghost" href="/docs">Read the API Docs</a></div>
+  <div class="flow" aria-label="verification pipeline">
+    <div class="node"><b>Agent</b><small>claims an action</small></div><div class="arrow pulse">→</div>
+    <div class="node"><b>Claim</b><small>email sent, record updated…</small></div><div class="arrow pulse">→</div>
+    <div class="node"><b>ProofLayer</b><small>fetches evidence</small></div><div class="arrow pulse">→</div>
+    <div class="node"><b>Evidence</b><small>external systems</small></div><div class="arrow pulse">→</div>
+    <div class="node"><b>Verdict</b><small>VERIFIED / FAILED / INCONCLUSIVE</small></div>
+  </div>
+</section>
+
+<section>
+  <h2>"Done" is not proof.</h2>
+  <p class="lead">Agents now send emails, open issues, update CRMs, process orders and edit documents. When something goes wrong, all you have is the agent insisting it worked.</p>
+  <div class="grid2" style="margin-top:24px">
+    <div class="card bad"><div class="quote">Agent: "Invoice sent successfully."</div><p style="color:var(--red)">❌ No independent verification. You take its word for it.</p></div>
+    <div class="card good"><div class="quote">ProofLayer: "Verified against external evidence."</div><p style="color:var(--green)">✓ Message, recipient, subject and attachment confirmed in the mailbox.</p></div>
+  </div>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <p class="lead">The verification engine is separate from the agent itself. That separation is the whole point: the thing being checked can never grade its own homework.</p>
+  <div class="steps">
+    <div class="step"><div class="n">01</div><b>Agent makes a claim</b><br><small>"I sent invoice #4821 to john@example.com."</small></div>
+    <div class="step"><div class="n">02</div><b>Provider fetches evidence</b><br><small>Gmail, and later Slack, GitHub, Stripe… are queried independently.</small></div>
+    <div class="step"><div class="n">03</div><b>Engine evaluates</b><br><small>Deterministic rules turn evidence into a verdict. No vibes.</small></div>
+    <div class="step"><div class="n">04</div><b>Structured result</b><br><small>Status, confidence, reason, evidence table, audit trail.</small></div>
+  </div>
+  <pre class="code"><span class="c"># separation of concerns</span>
+AGENT → VERIFICATION API → EVIDENCE PROVIDER → VERIFICATION ENGINE → RESULT</pre>
+</section>
+
+<section id="demo">
+  <h2>Try it — no account, no keys</h2>
+  <p class="lead">This runs the <b>real verification engine</b> against a deterministic demo mailbox, right here. Pick a scenario:</p>
+  <div class="scen-row">
+    <button class="scen" data-scenario="verified">A · Invoice sent → VERIFIED</button>
+    <button class="scen" data-scenario="failed">B · Wrong recipient → FAILED</button>
+    <button class="scen" data-scenario="inconclusive">C · No evidence → INCONCLUSIVE</button>
+    <button class="scen" data-scenario="contradiction">D · Conflicting evidence → FAILED</button>
+  </div>
+  <div id="demoError"></div>
+  <div id="demoResult" class="card">
+    <h3 style="margin-top:0">Result <span id="dBadge" class="badge">?</span> <span id="dConf" style="color:var(--muted);font-size:14px"></span></h3>
+    <p id="dReason"></p>
+    <div class="grid2">
+      <div><b>Claim</b><pre class="code" id="dClaim"></pre></div>
+      <div><b>Evidence</b><pre class="code" id="dEvidence"></pre></div>
+    </div>
+    <table class="ev"><thead><tr><th>Check</th><th>Expected</th><th>Observed</th><th>Result</th></tr></thead><tbody id="dTable"></tbody></table>
+  </div>
+</section>
+
+<section id="api">
+  <h2>Built for developers</h2>
+  <p class="lead">Call ProofLayer right after your agent acts. One endpoint, structured verdict.</p>
+  <pre class="code"><span class="c"># verify a claim</span>
+POST /api/v1/verifications
+Authorization: Bearer &lt;api-key&gt;
+
+{
+  <span class="k">"agentId"</span>: <span class="s">"agent_123"</span>,
+  <span class="k">"provider"</span>: <span class="s">"gmail"</span>,
+  <span class="k">"claim"</span>: {
+    <span class="k">"type"</span>: <span class="s">"email_sent"</span>,
+    <span class="k">"recipient"</span>: <span class="s">"john@example.com"</span>,
+    <span class="k">"subject"</span>: <span class="s">"Invoice #4821"</span>,
+    <span class="k">"attachment"</span>: <span class="s">"invoice.pdf"</span>
+  }
+}
+
+<span class="c"># verdict</span>
+{
+  <span class="k">"status"</span>: <span class="s">"VERIFIED"</span>,
+  <span class="k">"confidence"</span>: <span class="num">0.98</span>,
+  <span class="k">"reason"</span>: <span class="s">"All 5 required checks passed."</span>,
+  <span class="k">"evidence"</span>: [ … ]
+}</pre>
+  <div class="cta-row"><a class="btn primary" href="/docs">Explore API Docs</a><a class="btn ghost" href="/demo">Developer demo tool</a></div>
+</section>
+
+<section>
+  <h2>Provider-based, starting with Gmail</h2>
+  <p class="lead">Evidence comes from pluggable providers. One is live today; the engine already speaks them all.</p>
+  <div class="pills">
+    <span class="pill live">● Gmail — live</span>
+    <span class="pill">GitHub — planned</span><span class="pill">Slack — planned</span>
+    <span class="pill">Stripe — planned</span><span class="pill">Shopify — planned</span>
+    <span class="pill">HubSpot — planned</span><span class="pill">Salesforce — planned</span>
+    <span class="pill">Google Drive — planned</span><span class="pill">Browser agents — planned</span>
+    <span class="pill">Custom APIs — planned</span>
+  </div>
+</section>
+
+<section>
+  <h2>Trust is engineered, not promised</h2>
+  <ul class="sec-list">
+    <li><b>Organization isolation</b><span>Every record is scoped server-side. Cross-org reads return 404.</span></li>
+    <li><b>API-key auth</b><span>Argon2id-hashed keys with granular scopes and instant revocation.</span></li>
+    <li><b>Encrypted credentials</b><span>OAuth tokens encrypted at rest (AES-256-GCM). Never logged.</span></li>
+    <li><b>Audit trail</b><span>Every verification, login and key change recorded — without secrets.</span></li>
+    <li><b>Rate limiting</b><span>Global and per-endpoint budgets; 429s follow the error contract.</span></li>
+    <li><b>Request IDs</b><span>Every response carries X-Request-Id for correlation.</span></li>
+    <li><b>Independent evidence</b><span>Infrastructure failures yield INCONCLUSIVE — never a false FAILED.</span></li>
+    <li><b>Idempotency</b><span>Safe retries: same key returns the original record, conflicts get 409.</span></li>
+  </ul>
+</section>
+
+<section>
+  <h2>Stop teaching agents to say "done".</h2>
+  <p class="lead">Give them a verification layer instead. After your agent performs an action, ask ProofLayer what actually happened — and act on VERIFIED, FAILED, or INCONCLUSIVE.</p>
+  <div class="cta-row"><a class="btn primary" href="/docs">Read the API Docs</a></div>
+</section>
+
+<section style="text-align:center">
+  <h2>Your agent can claim it succeeded.<br>Now make it prove it.</h2>
+  <div class="cta-row" style="justify-content:center"><a class="btn primary" href="#demo">Try the Demo</a><a class="btn ghost" href="/docs">Explore the API</a></div>
+</section>
+</div>
+
+<footer><div class="wrap">ProofLayer MVP — deterministic demo provider on this page; production Gmail verification via API keys. <a href="/docs">API docs</a> · <a href="/demo">Developer tool</a></div></footer>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  function showError(label, code, msg) {
+    var box = $('demoError');
+    box.style.display = 'block';
+    box.textContent = label + ' → HTTP ' + code + ' — ' + msg;
+  }
+  function hideError() { $('demoError').style.display = 'none'; }
+  function render(data) {
+    $('demoResult').style.display = 'block';
+    var badge = $('dBadge');
+    badge.textContent = data.status;
+    badge.className = 'badge ' + data.status;
+    $('dConf').textContent = Math.round(data.confidence * 100) + '% confidence';
+    $('dReason').textContent = data.reason;
+    $('dClaim').textContent = JSON.stringify(data.claim, null, 2);
+    $('dEvidence').textContent = JSON.stringify(data.evidence, null, 2);
+    var tb = $('dTable'); tb.innerHTML = '';
+    data.evidence.forEach(function (e) {
+      var tr = document.createElement('tr');
+      var cls = e.result === 'PASS' ? 'PASS' : (e.result === 'FAIL' ? 'FAIL' : 'UNKNOWN');
+      tr.innerHTML = '<td></td><td></td><td></td><td class="' + cls + '"></td>';
+      tr.children[0].textContent = e.type;
+      tr.children[1].textContent = e.expected == null ? '—' : e.expected;
+      tr.children[2].textContent = e.observed == null ? '—' : e.observed;
+      tr.children[3].textContent = e.result;
+      tb.appendChild(tr);
+    });
+    $('demoResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  document.querySelectorAll('[data-scenario]').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+      hideError();
+      document.querySelectorAll('[data-scenario]').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var scenario = btn.getAttribute('data-scenario');
+      var res;
+      try {
+        res = await fetch('/api/v1/demo/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scenario: scenario })
+        });
+      } catch (e) { showError('POST /api/v1/demo/verify', 0, 'Network error. Is the server running?'); return; }
+      if (!res.ok) {
+        var detail = '';
+        try { detail = JSON.stringify(await res.json()); } catch (e) { detail = res.statusText; }
+        showError('POST /api/v1/demo/verify', res.status, detail);
+        return;
+      }
+      render(await res.json());
+    });
+  });
+})();
+</script>
+</body>
+</html>

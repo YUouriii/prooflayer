@@ -1,0 +1,15 @@
+# Production-safe Docker context: no secrets, no local state, no test code.
+node_modules
+.env
+.env.*
+.git
+.gitignore
+npm-debug.log
+coverage
+tests
+*.test.ts
+*.spec.ts
+.vscode
+.idea
+*.log
+dist
