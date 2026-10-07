@@ -114,6 +114,21 @@ describe('server and security documentation', () => {
     expect(serverUrl(3000)).toBe('http://localhost:3000');
   });
 
+  it('serverUrl uses the public base URL when configured (production)', () => {
+    expect(serverUrl(10000, 'https://prooflayer-2ixp.onrender.com')).toBe('https://prooflayer-2ixp.onrender.com');
+  });
+
+  it('production server URL never points to localhost', () => {
+    const url = serverUrl(10000, 'https://prooflayer-2ixp.onrender.com');
+    expect(url).not.toContain('localhost');
+    expect(url).not.toContain('0.0.0.0');
+    expect(url.startsWith('https://')).toBe(true);
+  });
+
+  it('serverUrl trims a trailing slash from the public base URL', () => {
+    expect(serverUrl(10000, 'https://prooflayer-2ixp.onrender.com/')).toBe('https://prooflayer-2ixp.onrender.com');
+  });
+
   it('declares Bearer API-key and session-cookie schemes', () => {
     expect(doc.components.securitySchemes.apiKey).toBeDefined();
     expect(doc.components.securitySchemes.session).toBeDefined();

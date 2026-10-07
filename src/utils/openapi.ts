@@ -317,8 +317,15 @@ export const json = (schema: unknown) => ({
   'application/json': { schema },
 });
 
-/** Local development server URL. Never advertise 0.0.0.0 (bind address, not a URL). */
-export function serverUrl(port: number): string {
+/**
+ * OpenAPI server URL. Local development falls back to localhost; production
+ * deployments set PUBLIC_BASE_URL to the public HTTPS origin so Swagger UI
+ * targets the real service instead of a localhost port. Never advertise
+ * 0.0.0.0 (bind address, not a URL). Never hardcode a host URL here.
+ */
+export function serverUrl(port: number, publicBaseUrl?: string): string {
+  const base = publicBaseUrl?.trim().replace(/\/+$/, '');
+  if (base) return base;
   return `http://localhost:${port}`;
 }
 

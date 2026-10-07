@@ -22,6 +22,8 @@ const envSchema = z.object({
 
   FRONTEND_URL: z.string().url().optional(),
 
+  PUBLIC_BASE_URL: z.string().url().optional(),
+
   CORS_ALLOWED_ORIGINS: z.string().optional(),
 
   SWAGGER_ENABLED: z.string().default('true'),
