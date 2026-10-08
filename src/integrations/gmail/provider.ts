@@ -200,7 +200,13 @@ export class GmailEvidenceProvider implements EvidenceProvider {
     const attachmentMatches = (m: GmailFullMessage): boolean =>
       !claim.attachment || m.attachmentFilenames.some((f) => f.toLowerCase() === claim.attachment!.toLowerCase());
 
-    const best = sent.find(toMatches) ?? sent[0];
+    // Best candidate wins: most matching checks (first on ties). Distinct
+    // messages that merely share the mailbox are different emails, not
+    // contradictions — otherwise no real mailbox with history could
+    // ever verify.
+    const score = (m: GmailFullMessage): number =>
+      (toMatches(m) ? 1 : 0) + (subjectMatches(m) ? 1 : 0) + (attachmentMatches(m) ? 1 : 0);
+    const best = sent.reduce((winner, m) => (score(m) > score(winner) ? m : winner), sent[0]);
     const items: EvidenceItem[] = [
       { type: 'message_exists', expected: claim.recipient, observed: `${sent.length} candidate(s) in sent mailbox`, result: 'PASS' },
       {
@@ -237,33 +243,23 @@ export class GmailEvidenceProvider implements EvidenceProvider {
       },
     ];
 
-    // Surface disagreement between independent candidates so the engine's
-    // contradiction rule fires instead of silently picking a winner.
-    const disagrees = (check: (m: GmailFullMessage) => boolean): boolean => {
-      const results = new Set(sent.map((m) => check(m)));
-      return results.size > 1;
-    };
-    const conflict = (type: string, expected: string, observed: string | null, basePass: boolean): void => {
-      items.push({
-        type,
-        expected,
-        observed,
-        result: basePass ? 'FAIL' : 'PASS',
-        detail: 'conflicting mailbox sources disagree on this check',
-      });
-    };
-    const baseByType = new Map(items.map((i) => [i.type, i]));
-    if (disagrees(toMatches)) {
-      const base = baseByType.get('recipient_match')!;
-      conflict('recipient_match', claim.recipient, sent.map((m) => m.to.join(', ')).join(' | ') || null, base.result === 'PASS');
-    }
-    if (disagrees(subjectMatches)) {
-      const base = baseByType.get('subject_match')!;
-      conflict('subject_match', claim.subject, sent.map((m) => m.subject).join(' | ') || null, base.result === 'PASS');
-    }
-    if (claim.attachment && disagrees(attachmentMatches)) {
-      const base = baseByType.get('attachment_present')!;
-      conflict('attachment_present', claim.attachment, sent.map((m) => m.attachmentFilenames.join(', ')).join(' | ') || null, base.result === 'PASS');
+    // Genuine ambiguity only: candidates agreeing with the winner on the
+    // identifying checks (recipient AND subject — plausibly the same email
+    // observed twice) that disagree on the attachment. Emit both sides so
+    // the engine's contradiction rule fires instead of silently picking.
+    if (claim.attachment) {
+      const sameEvent = sent.filter((m) => toMatches(m) === toMatches(best) && subjectMatches(m) === subjectMatches(best));
+      const outcomes = new Set(sameEvent.map((m) => attachmentMatches(m)));
+      if (outcomes.size > 1) {
+        const basePass = attachmentMatches(best);
+        items.push({
+          type: 'attachment_present',
+          expected: claim.attachment,
+          observed: sameEvent.map((m) => m.attachmentFilenames.join(', ')).join(' | ') || null,
+          result: basePass ? 'FAIL' : 'PASS',
+          detail: 'conflicting mailbox sources disagree on this check',
+        });
+      }
     }
 
     return items;

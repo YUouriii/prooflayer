@@ -113,15 +113,27 @@ describe('GmailEvidenceProvider', () => {
     expect(items.every((i) => i.result === 'UNKNOWN')).toBe(true);
   });
 
-  it('conflicting candidates surface contradiction for the engine', async () => {
+  it('distinct messages sharing only the mailbox are not contradictions', async () => {
     api = new FakeGmailApi([
       sentMessage({ id: 'a', to: ['john@example.com'], subject: 'Invoice #4821' }),
       sentMessage({ id: 'b', to: ['john@example.com'], subject: 'Quarterly Report' }),
     ]);
     provider = new GmailEvidenceProvider({ store, oauth, gmailApiFor: () => api });
     const items = await provider.collect(CLAIM, { organizationId: 'org-1' });
-    const subjects = items.filter((i) => i.type === 'subject_match').map((i) => i.result).sort();
-    expect(subjects).toEqual(['FAIL', 'PASS']);
+    // Best candidate wins outright: exact match, no conflicting items.
+    expect(items.filter((i) => i.type === 'subject_match').map((i) => i.result)).toEqual(['PASS']);
+    expect(evaluateEvidence(items, REQUIRED_EMAIL_SENT_CHECKS).status).toBe('VERIFIED');
+  });
+
+  it('same-email candidates disagreeing on attachment surface contradiction', async () => {
+    api = new FakeGmailApi([
+      sentMessage({ id: 'a', to: ['john@example.com'], subject: 'Invoice #4821', attachmentFilenames: ['invoice.pdf'] }),
+      sentMessage({ id: 'b', to: ['john@example.com'], subject: 'Invoice #4821', attachmentFilenames: [] }),
+    ]);
+    provider = new GmailEvidenceProvider({ store, oauth, gmailApiFor: () => api });
+    const items = await provider.collect(CLAIM, { organizationId: 'org-1' });
+    const attachments = items.filter((i) => i.type === 'attachment_present').map((i) => i.result).sort();
+    expect(attachments).toEqual(['FAIL', 'PASS']);
     const outcome = evaluateEvidence(items, REQUIRED_EMAIL_SENT_CHECKS);
     expect(outcome.status).toBe('FAILED');
     expect(outcome.confidence).toBe(0.75);
